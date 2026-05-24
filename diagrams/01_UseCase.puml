@@ -1,0 +1,64 @@
+@startuml UseCase_GPS_Tracker
+!define AWSPUML https://raw.githubusercontent.com/awslabs/aws-icons-for-plantuml/v14.0/dist
+skinparam linetype ortho
+skinparam backgroundColor #FEFEFE
+skinparam actorBackgroundColor #87CEEB
+skinparam actorBorderColor #0066CC
+
+actor "User/Administrator" as User
+actor "GPS Device" as Device
+
+rectangle "GPS Vehicle Tracking System" {
+  usecase "UC1: Register User" as UC1
+  usecase "UC2: Login" as UC2
+  usecase "UC3: View Dashboard" as UC3
+  usecase "UC4: Add Vehicle" as UC4
+  usecase "UC5: Monitor Vehicle Location" as UC5
+  usecase "UC6: Create Geofence" as UC6
+  usecase "UC7: Detect Geofence Violation" as UC7
+  usecase "UC8: Receive Notification" as UC8
+  usecase "UC9: View Violation History" as UC9
+  usecase "UC10: Update Profile" as UC10
+  usecase "UC11: Manage Vehicles" as UC11
+  usecase "UC12: Manage Geofences" as UC12
+  usecase "UC13: Submit GPS Location" as UC13
+}
+
+User --> UC1
+User --> UC2
+User --> UC3
+User --> UC4
+User --> UC5
+User --> UC6
+User --> UC9
+User --> UC10
+User --> UC11
+User --> UC12
+Device --> UC13
+UC2 .> UC3 : after login
+UC2 .> UC5 : after login
+UC4 --> UC11
+UC6 --> UC12
+UC13 --> UC7
+UC7 --> UC8
+UC5 .> UC13 : triggers
+
+note right of UC3
+  Displays vehicle counts,
+  geofence counts, and
+  violation statistics
+end note
+
+note right of UC7
+  Uses Ray Casting algorithm
+  to detect if vehicle is
+  inside/outside geofence
+end note
+
+note right of UC8
+  Sends notifications via
+  Email, Telegram, WhatsApp
+  through N8N
+end note
+
+@enduml

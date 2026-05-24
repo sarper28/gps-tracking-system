@@ -1,0 +1,150 @@
+@startuml ER_DatabaseDesign
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam linetype ortho
+
+title Perancangan Basis Data: Entity Relationship Diagram
+
+entity "Users" as Users {
+  *_id : ObjectId <<PK>>
+  --
+  *name : String
+  *email : String [unique]
+  *password : String [hashed]
+  notifConfig : Object
+    ├─ email : Boolean
+    ├─ telegram : Boolean
+    ├─ telegramChatId : String
+    ├─ whatsapp : Boolean
+    └─ whatsappPhone : String
+  createdAt : DateTime
+  updatedAt : DateTime
+}
+
+entity "Vehicles" as Vehicles {
+  *_id : ObjectId <<PK>>
+  --
+  *userId : ObjectId <<FK>>
+  *vehicleName : String
+  *deviceId : String [unique]
+  currentLocation : GeoJSON Point
+    ├─ type : "Point"
+    └─ coordinates : [longitude, latitude]
+  lastUpdated : DateTime
+  isActive : Boolean [default: true]
+  description : String
+  createdAt : DateTime
+  updatedAt : DateTime
+}
+
+entity "Geofences" as Geofences {
+  *_id : ObjectId <<PK>>
+  --
+  *userId : ObjectId <<FK>>
+  *name : String
+  *geometry : GeoJSON Polygon
+    ├─ type : "Polygon"
+    └─ coordinates : [[[lon, lat], ...]]
+  isActive : Boolean [default: true]
+  description : String
+  color : String [hex code]
+  createdAt : DateTime
+  updatedAt : DateTime
+}
+
+entity "LocationLogs" as LocationLogs {
+  *_id : ObjectId <<PK>>
+  --
+  *vehicleId : ObjectId <<FK>>
+  *location : GeoJSON Point
+  isViolation : Boolean
+  violatedGeofences : [ObjectId] [FK array]
+  accuracy : Number [meters]
+  speed : Number [km/h]
+  heading : Number [degrees]
+  altitude : Number [meters]
+  timestamp : DateTime
+  createdAt : DateTime
+}
+
+entity "NotificationLogs" as NotificationLogs {
+  *_id : ObjectId <<PK>>
+  --
+  *vehicleId : ObjectId <<FK>>
+  *geofenceId : ObjectId <<FK>>
+  *userId : ObjectId <<FK>>
+  *channel : Enum
+    ├─ "email"
+    ├─ "telegram"
+    ├─ "whatsapp"
+    └─ "webhook"
+  status : Enum
+    ├─ "pending"
+    ├─ "sent"
+    └─ "failed"
+  message : String
+  violationDetails : Object
+    ├─ vehicleName : String
+    ├─ geofenceName : String
+    ├─ violationTime : DateTime
+    └─ location : GeoJSON Point
+  sentAt : DateTime
+  failureReason : String [optional]
+  createdAt : DateTime
+}
+
+Users ||--o{ Vehicles : "owns"
+Users ||--o{ Geofences : "creates"
+Users ||--o{ NotificationLogs : "receives"
+Vehicles ||--o{ LocationLogs : "generates"
+Geofences ||--o{ LocationLogs : "violated-by"
+LocationLogs ||--o{ NotificationLogs : "triggers"
+
+note bottom of Users
+  Koleksi: users
+  Index:
+  - email (unique)
+  - createdAt
+end note
+
+note bottom of Vehicles
+  Koleksi: vehicles
+  Index:
+  - userId
+  - deviceId (unique)
+  - currentLocation (2dsphere untuk geospatial)
+  - lastUpdated
+end note
+
+note bottom of Geofences
+  Koleksi: geofences
+  Index:
+  - userId
+  - geometry (2dsphere)
+  - isActive
+  - createdAt
+end note
+
+note bottom of LocationLogs
+  Koleksi: locationlogs
+  Index:
+  - vehicleId
+  - timestamp (descending)
+  - isViolation
+  - location (2dsphere)
+
+  TTL Index (optional):
+  - Hapus data lama setelah 90 hari
+end note
+
+note bottom of NotificationLogs
+  Koleksi: notificationlogs
+  Index:
+  - userId
+  - vehicleId
+  - geofenceId
+  - status
+  - createdAt (descending)
+end note
+
+@enduml

@@ -1,0 +1,136 @@
+@startuml Sequence_N8NNotification
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+
+title Sequence Diagram: Notifikasi Otomatis via N8N
+
+participant "GPS Device" as Device
+participant "Backend\nLocation API\n(Express)" as BE
+participant "Geofence\nDetection\nLogic" as Logic
+participant "N8N\nWebhook\nEndpoint" as N8N
+participant "N8N\nWorkflow" as N8NFlow
+participant "Email\nService" as Email
+participant "Telegram\nBot" as Telegram
+participant "WhatsApp\nAPI" as WhatsApp
+participant "User\nNotification" as User
+participant "MongoDB\nNotificationLog" as DB
+
+Device -> BE: POST /api/location\n{\n  deviceId,\n  latitude,\n  longitude,\n  accuracy,\n  speed\n}
+
+activate BE
+  BE -> Logic: Cek apakah point\ndalam geofence
+
+  Logic -> Logic: Ray Casting\nAlgorithm
+
+  alt Violation Detected
+    Logic --> BE: isViolation = true\nviolatedGeofences = [...]
+
+    BE -> BE: Kumpulkan webhook\npayload:
+    note right of BE
+      {
+        vehicleId: "...",
+        vehicleName: "Tesla",
+        location: {lat, lng},
+        geofenceId: "...",
+        geofenceName: "Zone A",
+        violationTime: "...",
+        speed: "...",
+        userId: "..."
+      }
+    end note
+
+    BE -> N8N: Trigger POST\nN8N Webhook URL\ndengan payload
+
+    activate N8N
+      N8N -> N8NFlow: Terima webhook\ndi N8N Workflow
+
+      activate N8NFlow
+        N8NFlow -> N8NFlow: Parse webhook\npayload
+
+        par Email Notification
+          N8NFlow -> Email: Send email to\nuser.email\nSubject: Geofence Violation Alert\nBody: Vehicle has left Zone A
+          activate Email
+            Email -> Email: Format template\nemail
+            Email -> User: Kirim email\nnotification
+            User --> Email: Email diterima
+          deactivate Email
+
+        and Telegram Notification
+          N8NFlow -> Telegram: Send message ke\nuser.telegramChatId\nvia Telegram Bot API
+          activate Telegram
+            Telegram -> User: Kirim notification\ndi Telegram Chat
+            User --> Telegram: Terima pesan
+          deactivate Telegram
+
+        and WhatsApp Notification
+          N8NFlow -> WhatsApp: Send message ke\nuser.whatsappPhone\nvia WhatsApp Business API
+          activate WhatsApp
+            WhatsApp -> User: Kirim notifikasi\ndi WhatsApp
+            User --> WhatsApp: Terima pesan
+          deactivate WhatsApp
+        end par
+
+        N8NFlow -> DB: Log notification\nstatus = "sent"
+        activate DB
+          DB -> DB: Create\nNotificationLog:\n{\n  vehicleId,\n  geofenceId,\n  userId,\n  channel: "email|telegram|whatsapp",\n  status: "sent",\n  sentAt: now()\n}
+          DB --> N8NFlow: Success
+        deactivate DB
+
+        N8NFlow -> N8N: Return response\nstatus: "success"
+      deactivate N8NFlow
+
+    N8N --> BE: Return 200 OK
+    deactivate N8N
+
+    BE -> DB: Buat LocationLog\ndengan isViolation=true
+    BE -> BE: Buat Response:
+    note right of BE
+      {
+        success: true,
+        isViolation: true,
+        violatedGeofences: [...],
+        notificationsSent: true
+      }
+    end note
+
+  else No Violation
+    Logic --> BE: isViolation = false
+
+    BE -> DB: Buat LocationLog\ndengan isViolation=false
+
+    BE -> BE: Buat Response\nisViolation: false
+  end
+
+  BE --> Device: Return response
+deactivate BE
+
+note over N8N, N8NFlow
+  N8N Workflow Configuration:
+  1. Webhook node untuk trigger
+  2. Condition node untuk check
+  3. Send Email node
+  4. Send Telegram node
+  5. Send WhatsApp node
+  6. Database logging node
+
+  Keuntungan N8N:
+  - Decoupling: Sistem tidak tergantung
+    pada email/Telegram client
+  - Scalability: N8N handle queue
+  - Flexibility: Mudah ubah
+    logic tanpa redeploy backend
+end note
+
+note over Email, WhatsApp
+  Multi-channel notification:
+  - Email: Formal, detail
+  - Telegram: Real-time, chat-based
+  - WhatsApp: Personal phone, urgent
+
+  User dapat configure channel
+  di profile preferences
+end note
+
+@enduml

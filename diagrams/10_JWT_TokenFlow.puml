@@ -1,0 +1,104 @@
+@startuml JWT_Token_Flow
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam linetype ortho
+
+title JWT Token Flow: Register/Login hingga Penggunaan
+
+participant "Browser\nUser" as User
+participant "Frontend\nVue.js" as Frontend
+participant "axios\nHTTP Client" as Axios
+participant "Backend\nExpress API" as Backend
+participant "JWT Utils" as JWT
+participant "MongoDB" as DB
+participant "Browser\nLocalStorage" as Storage
+
+== STEP 1: LOGIN/REGISTER ==
+
+User -> Frontend: 1. Input email\n& password
+User -> Frontend: 2. Click\n"Login" button
+Frontend -> Axios: 3. POST /api/auth/login\n{email, password}
+Axios -> Backend: 4. HTTP Request\nto backend
+
+Backend -> DB: 5. Query: cari user\ndengan email ini
+DB --> Backend: 6. Return user\ndokumen
+
+Backend -> Backend: 7. Verify password\nbcryptjs.compare()
+alt Password Valid
+  Backend -> JWT: 8. Generate JWT\njwt.sign(\n{id: user._id},\nsecret,\n{expiresIn: "7d"}\n)
+  JWT --> Backend: 9. Return token\n"eyJhbGci...xy"
+else Password Invalid
+  Backend --> Axios: ❌ Return 401\nUnauthorized
+  Axios --> Frontend: Error message
+end
+
+Backend -> Backend: 10. Build response
+Backend --> Axios: 11. Return 200 OK\n{\n  "token": "eyJ...",\n  "user": {...}\n}
+
+== STEP 2: SAVE TOKEN ==
+
+Axios --> Frontend: Response received
+Frontend -> Frontend: 12. Extract token\nfrom response
+Frontend -> Storage: 13. localStorage.setItem(\n"token",\nresponse.data.token\n)
+Storage --> Frontend: ✅ Token saved!
+
+Frontend -> Storage: 14. localStorage.setItem(\n"user",\nJSON.stringify(user)\n)
+
+note right of Storage
+  Browser LocalStorage sekarang berisi:
+  ├─ "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  └─ "user": "{\"id\":\"507f...\",\"name\":\"John...\"}"
+
+  Token ini persistent meski tab ditutup!
+end note
+
+== STEP 3: USE TOKEN (Setiap API Request) ==
+
+Frontend -> Frontend: 15. User navigate\nke /dashboard
+Frontend -> Axios: 16. GET /api/vehicles\n(request baru)
+
+note right of Axios
+  Axios Interceptor:
+  ├─ const token = localStorage.getItem("token")
+  ├─ config.headers.Authorization = `Bearer ${token}`
+  └─ Proceed dengan request
+end note
+
+Axios -> Axios: 17. Read token\nfrom localStorage
+Axios -> Axios: 18. Add to header:\nAuthorization:\nBearer eyJhbGci...
+
+Axios -> Backend: 19. HTTP Request\nwith Authorization\nheader
+
+Backend -> Backend: 20. Extract token\nfrom Authorization\nheader
+
+Backend -> JWT: 21. Verify JWT\njwt.verify(\ntoken,\nsecret\n)
+alt Token Valid & Not Expired
+  JWT --> Backend: 22. ✅ Valid!\nReturn decoded:\n{id: user_id, iat, exp}
+  Backend -> Backend: 23. Set req.user\n= decoded payload
+  Backend -> DB: 24. Query vehicles\nmilk user ini
+  DB --> Backend: 25. Return vehicles
+  Backend --> Axios: 26. Return 200\n+ vehicles data
+else Token Invalid or Expired
+  JWT --> Backend: ❌ Invalid or Expired!
+  Backend --> Axios: ❌ Return 401\nUnauthorized
+end
+
+Axios --> Frontend: 27. Response received
+Frontend -> Frontend: 28. Update UI\nwith data
+
+== STEP 4: LOGOUT ==
+
+User -> Frontend: 29. Click\n"Logout" button
+Frontend -> Storage: 30. localStorage\n.removeItem("token")
+Frontend -> Storage: 31. localStorage\n.removeItem("user")
+Storage --> Frontend: ✅ Token deleted!
+
+Frontend -> Frontend: 32. Redirect to\n/login page
+
+note bottom of Storage
+  Sekarang tidak ada token di browser,
+  setiap request ke API akan return 401
+  User harus login lagi untuk mendapat token baru
+end note
+
+@enduml

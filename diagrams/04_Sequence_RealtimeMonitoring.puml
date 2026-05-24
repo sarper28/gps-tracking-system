@@ -1,0 +1,67 @@
+@startuml Sequence_RealtimeMonitoring
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+
+title Sequence Diagram: Pemantauan Real-time Kendaraan
+
+participant "Frontend\n(Vue.js)" as FE
+participant "Browser\nLocalStorage" as LS
+participant "Backend API\n(Express)" as BE
+participant "MongoDB" as DB
+participant "N8N\nWorkflow" as N8N
+
+autoactivation on
+
+FE -> BE: GET /api/vehicles\n(dengan JWT Token)
+activate BE
+  BE -> DB: Query vehicles\nmilik user
+  DB --> BE: Return vehicles list
+BE --> FE: Return [vehicles]
+deactivate BE
+
+FE -> LS: Simpan vehicles data
+FE -> FE: Polling setiap 5 detik\nuntuk update location
+
+loop Setiap 5 detik (Real-time polling)
+  FE -> BE: GET /api/location/vehicles/:id\n(Latest location)
+  activate BE
+    BE -> DB: Query latest location\nuntuk vehicle ini
+    DB --> BE: Return location data\n+ isViolation flag
+  BE --> FE: Return location data
+  deactivate BE
+
+  FE -> FE: Update marker di map
+  FE -> FE: Update vehicle location\ndi sidebar
+
+  alt Jika Ada Violation
+    FE -> FE: Tampilkan alert/warning
+    FE -> FE: Ubah marker color\nmenjadi merah
+  else Normal Location
+    FE -> FE: Marker tetap normal\n(hijau)
+  end
+end
+
+note over FE, BE
+  Polling approach:
+  - Simple to implement
+  - Works in all browsers
+  - Interval: 5 detik (configurable)
+  - Better: WebSocket untuk latency ultra-rendah
+end note
+
+note over BE, DB
+  Database Query optimization:
+  - Index on vehicleId
+  - Index on timestamp
+  - For scalability: Consider caching
+end note
+
+note over N8N
+  N8N hanya trigger ketika
+  ada violation, bukan setiap polling
+  (untuk mengurangi beban sistem)
+end note
+
+@enduml

@@ -1,0 +1,81 @@
+@startuml Activity_LoginAuth
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam linetype ortho
+skinparam defaultTextAlignment center
+
+title Activity Diagram: Login dan Autentikasi
+
+start
+:User membuka\nAplikasi Web;
+:Masuk ke halaman\nLogin;
+:Input Email dan Password;
+:Klik tombol "Login";
+:Kirim POST request\nke /api/auth/login;
+:Backend terima request;
+:Validasi input
+ (email & password format);
+if (Format Valid?) then (Ya)
+  :Query database cari\nuser dengan email;
+  if (User Ada?) then (Ya)
+    :Ambil password hash\ndari database;
+    :Bandingkan password input\ndengan hash menggunakan\nbcryptjs.compare();
+    if (Password Cocok?) then (Ya)
+      :Generate JWT Token\ndengan payload:
+         - user ID
+         - email
+         - name
+         - expiration (7 hari);
+      :Buat Response sukses\nbeserta token;
+      :Kirim Response ke Frontend;
+      :Frontend terima token;
+      :Simpan token di\nLocalStorage;
+      :Simpan user data\ndi Vuex store;
+      :Redirect ke halaman\nDashboard;
+      :Tampilkan Dashboard\ndengan user info;
+    else (Tidak cocok)
+      :Buat Response error
+       "Password salah";
+      :Kirim Response ke Frontend;
+      :Tampilkan error message
+       kepada user;
+    endif
+  else (Tidak ada)
+    :Buat Response error
+     "User tidak ditemukan";
+    :Kirim Response ke Frontend;
+    :Tampilkan error message;
+  endif
+else (Format Tidak Valid)
+  :Buat Response error
+   "Format input tidak valid";
+  :Kirim Response ke Frontend;
+  :Tampilkan error message;
+endif
+:Log login attempt\nke database;
+stop
+
+note right of start
+  User membuka login page
+  di: http://localhost:3000/login
+end note
+
+note right of "Bandingkan password input\ndengan hash menggunakan\nbcryptjs.compare();"
+  Security: Password tidak pernah
+  disimpan dalam plain text,
+  hanya hash-nya
+end note
+
+note right of "Simpan token di\nLocalStorage;"
+  Token akan digunakan untuk
+  setiap request ke API yang
+  memerlukan autentikasi
+end note
+
+note bottom of stop
+  User berhasil login dan
+  dapat mengakses dashboard
+  serta API endpoints
+end note
+
+@enduml

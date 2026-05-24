@@ -1,0 +1,94 @@
+@startuml Sequence_CreateGeofence
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+
+title Sequence Diagram: Pembuatan Geofence
+
+participant "User\n(Frontend)" as User
+participant "Frontend\n(Vue.js)" as FE
+participant "Leaflet.js\nMap" as Map
+participant "Backend API\n(Express)" as BE
+participant "Middleware\nAuth" as Auth
+participant "Controller" as Controller
+participant "MongoDB" as DB
+
+User -> FE: 1. Buka halaman\nGeofences
+FE -> BE: GET /api/geofences\n(dengan JWT Token)
+activate BE
+  Auth -> Auth: Verifikasi JWT\ntoken validity
+  auth Auth -> DB: Jika valid,\nquery geofences
+  DB --> Auth: Return data
+  Auth --> BE: Token valid
+  BE --> FE: Return geofences list
+deactivate BE
+
+FE -> Map: Render map dengan\nexisting geofences
+
+User -> FE: 2. Klik tombol\n"Create New Geofence"
+FE -> FE: Tampilkan form input:\n- Geofence name\n- Description\n- Toggle drawing mode
+
+User -> Map: 3. Gambar polygon\npada map dengan\nclick-click koordinat
+
+Map -> FE: 4. Return polygon\ncoordinates array
+
+FE -> FE: Validasi:\n- Minimal 3 titik\n- Geofence name tidak kosong
+
+User -> FE: 5. Klik tombol\n"Save Geofence"
+
+alt Validasi Gagal
+  FE -> FE: Tampilkan error message
+else Validasi Sukses
+  FE -> BE: POST /api/geofences\nPayload:\n- name\n- description\n- coordinates (GeoJSON)
+  activate BE
+    Auth -> Auth: Verifikasi JWT\ntoken
+    Auth --> BE: Token valid,\nuserID valid
+
+    Controller -> Controller: Parse GeoJSON\nPolygon
+    Controller -> Controller: Validasi\ngeometry format
+
+    Controller -> DB: Insert geofence\ndokumen baru
+    activate DB
+      DB -> DB: Create:\n{\n  userId,\n  name,\n  geometry (GeoJSON),\n  isActive: true,\n  createdAt\n}
+      DB --> Controller: Return\n_id + data
+    deactivate DB
+
+    BE --> FE: Response 201 Created\n{\n  success: true,\n  message: "Geofence created",\n  geofence: {...}\n}
+  deactivate BE
+
+  FE -> FE: Tampilkan success\nmessage
+  FE -> Map: Render geofence baru\ndi map
+  FE -> FE: Refresh geofences\nlist di sidebar
+end
+
+note over FE, Map
+  Koordinat dikumpulkan dengan:
+  - Klik pada map untuk menambah point
+  - Double-click untuk selesai
+  - Format: [longitude, latitude]
+  - GeoJSON Polygon format
+end note
+
+note over Controller
+  Validasi di backend:
+  - User hanya bisa lihat/buat
+    geofence miliknya sendiri
+  - Geometry harus valid GeoJSON
+  - Closed polygon (first = last point)
+end note
+
+note over DB
+  MongoDB GeoJSON format:
+  {
+    type: "Polygon",
+    coordinates: [[
+      [lon1, lat1],
+      [lon2, lat2],
+      [lon3, lat3],
+      [lon1, lat1]  // Closed
+    ]]
+  }
+end note
+
+@enduml

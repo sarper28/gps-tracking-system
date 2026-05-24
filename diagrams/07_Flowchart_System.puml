@@ -1,0 +1,130 @@
+@startuml Flowchart_System
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam linetype ortho
+skinparam defaultTextAlignment center
+
+title Flowchart: Alur Kerja Sistem GPS Vehicle Tracking
+
+start
+:Sistem Dimulai;
+
+:Initialize Backend Server
+ (Express.js);
+:Initialize Frontend App
+ (Vue.js);
+:Connect ke MongoDB;
+
+if (Koneksi Database OK?) then (Ya)
+  :Database siap;
+else (Tidak)
+  :Tampilkan error;
+  stop
+endif
+
+:Aplikasi siap digunakan;
+
+split
+  :Jalur 1: User Activity
+  fork
+    :User Register
+     -> Login;
+    if (Login Berhasil?) then (Ya)
+      :Generate JWT Token;
+      :Redirect ke Dashboard;
+    else (Tidak)
+      :Tampilkan error message;
+      :Kembali ke login page;
+    endif
+  fork again
+    :User Add Vehicle;
+    :Simpan Vehicle ke DB;
+  fork again
+    :User Create Geofence;
+    :Gambar polygon di map;
+    :Simpan Geofence ke DB;
+  fork again
+    :User View Dashboard;
+    :Tampilkan statistics;
+    :Real-time vehicle tracking
+     dengan polling 5 detik;
+  end fork
+
+split again
+  :Jalur 2: GPS Device Activity
+  fork
+    :GPS Device mengirim
+     location setiap X detik;
+    :Backend terima location
+     POST /api/location;
+  fork again
+    :Validasi input data;
+    :Cari vehicle di DB;
+    if (Vehicle Ada?) then (Ya)
+      :Lanjut ke Geofence Check;
+    else (Tidak)
+      :Return error;
+    endif
+  fork again
+    :Ambil active geofences;
+    if (Ada geofence?) then (Ya)
+      :Iterasi setiap geofence;
+      :Jalankan Ray Casting
+       Algorithm;
+    else (Tidak)
+      :Update location saja;
+    endif
+  fork again
+    if (Ada Violation?) then (Ya)
+      :Buat LocationLog
+       isViolation=true;
+      :Trigger N8N Webhook;
+      :N8N kirim notifikasi
+       (Email/Telegram/WhatsApp);
+      :Log notification status;
+    else (Tidak)
+      :Buat LocationLog
+       isViolation=false;
+      :Update vehicle
+       currentLocation;
+    endif
+  fork again
+    :Return response ke device;
+  end fork
+
+split again
+  :Jalur 3: Monitoring & Analysis
+  fork
+    :User view vehicle history;
+    :Query LocationLog
+     dari MongoDB;
+    :Tampilkan track di map;
+  fork again
+    :User view violations;
+    :Filter LocationLog
+     dengan isViolation=true;
+    :Tampilkan warning/details;
+  fork again
+    :User export data/reports;
+    :Generate PDF/CSV;
+  end fork
+end split
+
+note bottom of "GPS Device mengirim\n location setiap X detik;"
+  Frekuensi bisa dikonfigurasi
+  (default: 30 detik)
+end note
+
+note bottom of "Jalankan Ray Casting\n Algorithm;"
+  Algorithm ini menentukan
+  apakah GPS point berada
+  di dalam/luar polygon
+end note
+
+note bottom of "Trigger N8N Webhook;"
+  Backend mengirim webhook POST
+  ke N8N untuk notifikasi
+  (asynchronous)
+end note
+
+@enduml

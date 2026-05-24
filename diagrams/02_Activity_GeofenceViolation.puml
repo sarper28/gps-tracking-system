@@ -1,0 +1,77 @@
+@startuml Activity_GeofenceViolation
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam linetype ortho
+skinparam defaultTextAlignment center
+
+title Activity Diagram: Proses Deteksi Pencerobohan Geofence dan Notifikasi
+
+start
+:Terima GPS Location\ndarti Device;
+:Validasi Input
+  (latitude, longitude);
+:Cari Vehicle berdasarkan\nDevice ID;
+if (Vehicle Ada?) then (Ya)
+  :Ambil Active Geofences
+   milik User;
+  if (Ada Geofence Aktif?) then (Ya)
+    :Iterasi setiap Geofence;
+    repeat
+      :Jalankan Ray Casting Algorithm;
+      if (Point dalam Polygon?) then (Ya)
+        :Tandai sebagai Violation;
+        :Tambahkan ke Violated Geofences list;
+      else (Tidak)
+        :Point di luar polygon;
+      endif
+    repeat while (Ada geofence lagi?)
+
+    if (Ada Violation?) then (Ya)
+      :Buat LocationLog
+       dengan isViolation=true;
+      :Simpan violated geofences;
+      :Trigger N8N Webhook\nuntuk notifikasi;
+      note right : Webhook mengirim data:
+         - Vehicle ID
+         - Location
+         - Geofence ID
+         - Violation Time
+      fork
+        :Kirim Email\nNotification;
+      fork again
+        :Kirim Telegram\nMessage;
+      fork again
+        :Kirim WhatsApp\nMessage;
+      end fork
+      :Buat Notification Log\ndengan status=sent;
+      :Kirim Response ke Device
+       dengan isViolation=true;
+    else (Tidak)
+      :Buat LocationLog
+       dengan isViolation=false;
+      :Update Vehicle
+       currentLocation;
+      :Kirim Response ke Device
+       dengan isViolation=false;
+    endif
+  else (Tidak ada)
+    :Update Location saja\ntanpa geofence check;
+    :Kirim Response sukses;
+  endif
+else (Tidak ada)
+  :Kirim Error Response\n(Vehicle tidak ditemukan);
+endif
+:Log activity ke database;
+stop
+
+note bottom of start
+  Input: GPS Location dari IoT Device
+  Format: {deviceId, lat, lng, accuracy, speed, heading}
+end note
+
+note bottom of stop
+  Output: Response dengan status violation
+  dan LocationLog yang disimpan di database
+end note
+
+@enduml

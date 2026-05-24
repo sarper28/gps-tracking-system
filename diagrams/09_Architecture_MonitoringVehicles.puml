@@ -1,0 +1,179 @@
+@startuml Architecture_MonitoringVehicles
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam linetype ortho
+
+title Diagram Arsitektur: GPS Vehicle Monitoring System
+
+frame "IoT Devices Layer" {
+  component "GPS Device 1\n(Android/IoT)" as Device1
+  component "GPS Device 2\n(Android/IoT)" as Device2
+  component "GPS Device N\n(Android/IoT)" as DeviceN
+  note bottom of Device1
+    Mengirim location setiap
+    30 detik ke backend via HTTPS
+    Format: JSON GPS data
+  end note
+}
+
+frame "Presentation Layer" {
+  component "Web Browser\n(Vue.js 3)" as Frontend
+  component "Interactive Map\n(Leaflet.js)" as Map
+  component "Responsive UI\n(Dashboard, Vehicles,\nGeofences)" as UI
+
+  Frontend --> Map : Render
+  Frontend --> UI : Render
+
+  note bottom of Frontend
+    - SPA (Single Page Application)
+    - Real-time polling (5s interval)
+    - Local storage untuk token JWT
+    - Running on port 3000
+  end note
+}
+
+frame "API Layer / Backend" {
+  component "Express.js Server\n(REST API)" as Server
+  component "Authentication\nMiddleware\n(JWT Verification)" as Auth
+  component "Request Validation" as Validation
+  component "Rate Limiting\n(DDoS Protection)" as RateLimit
+
+  Server --> Auth : Protect routes
+  Server --> Validation : Validate input
+  Server --> RateLimit : Limit requests
+
+  note bottom of Server
+    - RESTful API endpoints
+    - Async/await handlers
+    - Error handling
+    - Logging & monitoring
+    - Running on port 5000
+  end note
+}
+
+frame "Business Logic Layer" {
+  component "Location Controller\n(GPS Update Handler)" as LocController
+  component "Vehicle Controller\n(CRUD Operations)" as VehicleController
+  component "Geofence Controller\n(CRUD + Retrieval)" as GeoController
+  component "Auth Controller\n(Login/Register)" as AuthController
+
+  note bottom of LocController
+    - Menerima POST /api/location
+    - Trigger geofence detection
+    - Call geofencing logic
+  end note
+}
+
+frame "Geofencing Logic" {
+  component "Ray Casting\nAlgorithm\n(Point-in-Polygon)" as Algorithm
+  component "Violation Detection\n& Logger" as ViolationDetector
+
+  LocController --> Algorithm : Check point vs polygon
+  Algorithm --> ViolationDetector : Violation result
+
+  note bottom of Algorithm
+    - Matematical algorithm
+    - O(n) complexity
+    - Accurate detection
+    - Handle edge cases
+  end note
+}
+
+frame "Data Layer" {
+  component "MongoDB\n(NoSQL Database)" as DB
+  component "Collections:" as Collections
+
+  Collections --|> "users" :
+  Collections --|> "vehicles" :
+  Collections --|> "geofences" :
+  Collections --|> "locationlogs" :
+  Collections --|> "notificationlogs" :
+
+  note bottom of DB
+    - Document-based storage
+    - Geospatial indexing
+    - High availability (Replica Set)
+    - Secure authentication
+  end note
+}
+
+frame "Notification Service" {
+  component "N8N Workflow\nOrchestrator" as N8N
+  component "Email Service\n(SMTP)" as EmailService
+  component "Telegram Bot\nAPI" as TelegramBot
+  component "WhatsApp\nBusiness API" as WhatsAppAPI
+
+  N8N --> EmailService : Send email
+  N8N --> TelegramBot : Send message
+  N8N --> WhatsAppAPI : Send message
+
+  note bottom of N8N
+    - Webhook receiver
+    - Async workflow
+    - Decoupled from backend
+    - Multi-channel support
+    - Retry mechanism
+  end note
+}
+
+frame "External Services" {
+  component "OpenStreetMap\n(Map Tiles)" as OSM
+  component "Third-party\nNotification APIs" as ThirdParty
+  note bottom of OSM
+    - Free map tiles
+    - Used by Leaflet
+  end note
+}
+
+Device1 -.-> Server : HTTPS POST\n/api/location
+Device2 -.-> Server : HTTPS POST
+DeviceN -.-> Server : HTTPS POST
+
+Frontend -.-> Server : REST API\nHTTPS requests
+Frontend -.-> OSM : Fetch map tiles
+Frontend -.-> Map : Render
+
+Server -.-> LocController : Route requests
+Server -.-> VehicleController : Route requests
+Server -.-> GeoController : Route requests
+Server -.-> AuthController : Route requests
+
+ViolationDetector -.-> ViolationDetector : Create N8N\nwebhook trigger
+
+ViolationDetector -.-> N8N : POST Webhook\nViolation data
+
+LocController -.-> DB : Query/Insert
+VehicleController -.-> DB : Query/Insert/Update/Delete
+GeoController -.-> DB : Query/Insert/Update/Delete
+AuthController -.-> DB : Query/Insert
+
+Algorithm -.-> GeoController : Return boolean
+
+N8N -.-> ThirdParty : Send notifications
+
+note bottom
+  **System Components Summary:**
+
+  **Input**: GPS coordinates dari IoT devices
+  **Processing**: Geofence violation detection
+  **Storage**: MongoDB NoSQL database
+  **Output**: Real-time dashboard + Notifications
+
+  **Key Features:**
+  ✓ Real-time vehicle tracking
+  ✓ Polygon-based geofencing
+  ✓ Multi-channel notifications
+  ✓ Scalable architecture
+  ✓ Secure JWT authentication
+  ✓ Data isolation per user
+  ✓ Comprehensive logging
+
+  **Technologies Stack:**
+  Frontend: Vue.js 3, Vite, Leaflet.js
+  Backend: Node.js, Express.js
+  Database: MongoDB
+  Notifications: N8N
+  Security: JWT, bcryptjs, CORS
+end note
+
+@enduml
