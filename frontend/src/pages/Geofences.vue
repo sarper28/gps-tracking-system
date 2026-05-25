@@ -3,9 +3,7 @@
     <div class="header">
       <h1>Manajamen Pembatasan Area (Geofence)</h1>
       <div class="header-actions">
-        <button @click="showDrawing = !showDrawing" :class="{ active: showDrawing }" class="btn-toggle">
-          {{ showDrawing ? " Hide Map" : " Create Geofence" }}
-        </button>
+        <button @click="showDrawing = true" class="btn-toggle">Create Geofence</button>
       </div>
     </div>
 
@@ -18,9 +16,7 @@
           <label for="vehicleSelect">Kendaraan:</label>
           <select v-model="selectedVehicleId" id="vehicleSelect" class="input-field select-field" required>
             <option value="">-- Pilih Kendaraan --</option>
-            <option v-for="vehicle in vehicles" :key="vehicle._id" :value="vehicle._id">
-              {{ vehicle.vehicleName }} ({{ vehicle.licensePlate }})
-            </option>
+            <option v-for="vehicle in vehicles" :key="vehicle._id" :value="vehicle._id">{{ vehicle.vehicleName }} ({{ vehicle.licensePlate }})</option>
           </select>
           <p v-if="selectedVehicleId" class="vehicle-info">✅ {{ getSelectedVehicleName() }}</p>
         </div>
@@ -42,7 +38,7 @@
         <!-- Polygon Mode -->
         <div v-if="selectedMode === 'polygon'" class="map-controls">
           <div class="controls-group">
-            <p><strong>Drawing Instructions:</strong></p>
+            <p><strong>Instruksi Menggambar:</strong></p>
             <ul>
               <li>Click on the map to add vertices</li>
               <li>Double-click to finish drawing</li>

@@ -101,7 +101,8 @@ export default {
     updateGeofencesForVehicle(vehicleId) {
       this.clearAllGeofences();
       const vehicleGeofences = this.allGeofences.filter((g) => g.vehicleId === vehicleId);
-      this.drawGeofences(vehicleGeofences);
+      // tampilkan semua geofence milik kendaraan yang dipilih (inactive hilang)
+      this.drawGeofences(vehicleGeofences.filter((g) => g.isActive));
     },
     clearAllGeofences() {
       Object.values(this.geofencePolygons).forEach((polygon) => {
@@ -151,8 +152,55 @@ export default {
       });
       this.markers = {};
     },
-    drawGeofences(geofences) {
-      geofences.forEach((geofence) => {
+    async drawGeofences(geofences) {
+      // gambar untuk tipe:
+      // - polygon: ambil geometry.coordinates
+      // - province: ambil boundary dari endpoint /geofences/provinces/:province/geometry
+      const drawJobs = geofences.map(async (geofence) => {
+        if (geofence.type === "province" || geofence.type === "provinsi") {
+          // backend biasanya mengirim provinceName di geofence
+          const provinceName = geofence.provinceName || geofence.province;
+          if (!provinceName) return;
+
+          const response = await api.get(`/geofences/provinces/${encodeURIComponent(provinceName)}/geometry`);
+          const geometry = response.data.geometry;
+
+          if (!geometry) return;
+
+          if (geometry.type === "Polygon") {
+            const coords = geometry.coordinates[0].map(([lng, lat]) => [lat, lng]);
+            const polygon = L.polygon(coords, {
+              color: "#27ae60",
+              weight: 2,
+              opacity: 0.7,
+              fillOpacity: 0.2,
+            });
+            polygon.bindPopup(`<strong>${geofence.name}</strong><br/>Province`);
+            polygon.addTo(this.map);
+            this.geofencePolygons[geofence._id] = polygon;
+          } else if (geometry.type === "MultiPolygon") {
+            // multi polygon => buat satu feature group agar bisa dihapus/di-track
+            const group = L.featureGroup();
+            geometry.coordinates.forEach((poly) => {
+              const ring = poly[0].map(([lng, lat]) => [lat, lng]);
+              const polygon = L.polygon(ring, {
+                color: "#27ae60",
+                weight: 2,
+                opacity: 0.7,
+                fillOpacity: 0.2,
+              });
+              polygon.bindPopup(`<strong>${geofence.name}</strong><br/>Province`);
+              polygon.addTo(group);
+            });
+            group.addTo(this.map);
+            this.geofencePolygons[geofence._id] = group;
+          }
+
+          return;
+        }
+
+        // default: polygon geofence
+        if (!geofence.geometry?.coordinates?.[0]) return;
         const coordinates = geofence.geometry.coordinates[0].map(([lng, lat]) => [lat, lng]);
 
         const polygon = L.polygon(coordinates, {
@@ -166,6 +214,8 @@ export default {
         polygon.addTo(this.map);
         this.geofencePolygons[geofence._id] = polygon;
       });
+
+      await Promise.all(drawJobs);
     },
     toggleTracking() {
       if (this.isTracking) {
